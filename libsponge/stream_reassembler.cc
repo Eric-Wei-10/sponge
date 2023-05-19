@@ -12,11 +12,14 @@ void DUMMY_CODE(Targs &&... /* unused */) {}
 
 using namespace std;
 
-StreamReassembler::StreamReassembler(const size_t capacity): 
-    _output(capacity), _capacity(capacity), _unassembled(),
-    _first_unread(0), _first_unassembled(0), _first_unaccepted(capacity),
-    _eof_received(false)
-    {}
+StreamReassembler::StreamReassembler(const size_t capacity)
+    : _output(capacity)
+    , _capacity(capacity)
+    , _unassembled()
+    , _first_unread(0)
+    , _first_unassembled(0)
+    , _first_unaccepted(capacity)
+    , _eof_received(false) {}
 
 //! \details This function accepts a substring (aka a segment) of bytes,
 //! possibly out-of-order, from the logical stream, and assembles any newly
@@ -35,11 +38,13 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 
     // Skip empty string.
     if (length == 0) {
-        if (eof) _output.end_input();
+        if (eof)
+            _output.end_input();
         return;
     }
     // Skip string that is entirely out of bound.
-    if (index + length <= _first_unassembled || index >= _first_unaccepted) return;
+    if (index + length <= _first_unassembled || index >= _first_unaccepted)
+        return;
 
     // Crop string that is partly out of bound.
     // Crop head.
@@ -50,9 +55,8 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
     // Crop tail.
     if (index + length > _first_unaccepted) {
         _data = _data.substr(0, _first_unaccepted - _index);
-        _eof = false;   // If the tail is cropped, then the stream can't end.
+        _eof = false;  // If the tail is cropped, then the stream can't end.
         // cout << "disable eof" << endl;
-
     }
 
     // Insert the string into map.
@@ -71,7 +75,7 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
 
     // Put continuous data to the output stream.
     size_t first_unassembled = _first_unassembled;
-    for (it = _unassembled.begin(); it != _unassembled.end(); ) {
+    for (it = _unassembled.begin(); it != _unassembled.end();) {
         if (it->first == first_unassembled) {
             // If the string could be put into stream, put it.
             _output.write(it->second);
@@ -126,6 +130,4 @@ size_t StreamReassembler::unassembled_bytes() const {
     return count;
 }
 
-bool StreamReassembler::empty() const {
-    return _output.buffer_empty() && (unassembled_bytes() == 0);
-}
+bool StreamReassembler::empty() const { return _output.buffer_empty() && (unassembled_bytes() == 0); }
