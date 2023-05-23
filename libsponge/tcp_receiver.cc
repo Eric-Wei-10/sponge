@@ -11,9 +11,10 @@ void DUMMY_CODE(Targs &&... /* unused */) {}
 using namespace std;
 
 void TCPReceiver::segment_received(const TCPSegment &seg) {
-    // If receiver hasn't received SYN and the incomming segment 
+    // If receiver hasn't received SYN and the incomming segment
     // doesn't contain a SYN flag, simply return.
-    if (!_syn_rcvd && !seg.header().syn) return;
+    if (!_syn_rcvd && !seg.header().syn)
+        return;
 
     // If the incomming segment contains a SYN flag, initialize isn.
     if (!_syn_rcvd && seg.header().syn) {
