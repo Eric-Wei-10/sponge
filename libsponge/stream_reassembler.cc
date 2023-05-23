@@ -64,12 +64,12 @@ void StreamReassembler::push_substring(const string &data, const size_t index, c
     if (it == _unassembled.end()) {
         // If a string starts at '_index' doesn't exist, create a new pair.
         _unassembled[_index] = _data;
-        cout << "Inserted a new pair" << endl;
+        // cout << "Inserted a new pair" << endl;
     } else {
         // If it exist, replace if the new one is longer.
         if (_data.length() > it->second.length()) {
             _unassembled[_index] = _data;
-            cout << "Inserted a longer pair" << endl;
+            // cout << "Inserted a longer pair" << endl;
         }
     }
 
