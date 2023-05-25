@@ -22,12 +22,9 @@ TCPSender::TCPSender(const size_t capacity, const uint16_t retx_timeout, const s
     , _initial_retransmission_timeout{retx_timeout}
     , _stream(capacity) {}
 
-uint64_t TCPSender::bytes_in_flight() const {
-    return _next_seqno - _next_ackno; 
-}
+uint64_t TCPSender::bytes_in_flight() const { return _next_seqno - _next_ackno; }
 
 void TCPSender::fill_window() {
-    
     // If SYN hasn't been sent.
     if (!_syn_sent) {
         TCPSegment _segment;
@@ -46,7 +43,8 @@ void TCPSender::fill_window() {
         return;
     }
 
-    if (_fin_sent) return;
+    if (_fin_sent)
+        return;
 
     // Send a normal segment according to buffer and window size.
     size_t _window_size = _upper_bound - _next_seqno;
@@ -74,13 +72,12 @@ void TCPSender::fill_window() {
         return;
     }
 
-    size_t _bytes_to_send = _window_size < _bytes_to_read? _window_size: _bytes_to_read;
+    size_t _bytes_to_send = _window_size < _bytes_to_read ? _window_size : _bytes_to_read;
 
     while (_bytes_to_send) {
-
         TCPSegment _segment;
-        size_t _payload_size = _bytes_to_send < TCPConfig::MAX_PAYLOAD_SIZE
-                    ? _bytes_to_send: TCPConfig::MAX_PAYLOAD_SIZE;
+        size_t _payload_size =
+            _bytes_to_send < TCPConfig::MAX_PAYLOAD_SIZE ? _bytes_to_send : TCPConfig::MAX_PAYLOAD_SIZE;
 
         // Fill header.
         _segment.header().seqno = wrap(_next_seqno, _isn);
@@ -111,7 +108,8 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     uint64_t _abs_ackno = unwrap(ackno, _isn, _next_ackno);
 
     // Ignore illegal ACK package.
-    if (_abs_ackno <= _next_ackno || _abs_ackno > _upper_bound) return;
+    if (_abs_ackno <= _next_ackno || _abs_ackno > _upper_bound)
+        return;
 
     // Remove ongoing segment.
     while (!_outgoing.empty()) {
@@ -132,7 +130,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     _upper_bound = _abs_ackno + window_size;
 
     // cout << "Updated ackno: " << _next_ackno << ", new bound " << _upper_bound << endl;
-    cout << bytes_in_flight() << endl;
+    // cout << bytes_in_flight() << endl;
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
