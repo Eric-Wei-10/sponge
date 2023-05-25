@@ -8,6 +8,8 @@
 
 #include <functional>
 #include <queue>
+#include <iostream>
+using namespace std;
 
 //! \brief The "sender" part of a TCP implementation.
 
@@ -31,6 +33,18 @@ class TCPSender {
 
     //! the (absolute) sequence number for the next byte to be sent
     uint64_t _next_seqno{0};
+
+    uint64_t _next_ackno{0};
+
+    uint64_t _upper_bound{0};
+
+    queue<TCPSegment> _outgoing{};
+
+    queue<TCPSegment> _helper{};
+
+    bool _syn_sent{false};
+
+    bool _fin_sent{false};
 
   public:
     //! Initialize a TCPSender
