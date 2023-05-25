@@ -91,6 +91,7 @@ void TCPSender::fill_window() {
             _segment.header().fin = true;
             _fin_sent = true;
             _next_seqno += 1;
+            cout << "send fin" << endl;
         }
 
         // Push segment into queue.
@@ -108,7 +109,7 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     uint64_t _abs_ackno = unwrap(ackno, _isn, _next_ackno);
 
     // Ignore illegal ACK package.
-    if (_abs_ackno <= _next_ackno || _abs_ackno > _upper_bound)
+    if (_abs_ackno > _upper_bound)
         return;
 
     // Remove ongoing segment.
