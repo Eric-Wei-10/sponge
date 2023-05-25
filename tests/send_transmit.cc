@@ -93,6 +93,8 @@ int main() {
                 test.execute(ExpectNoSegment{});
             }
             test.execute(ExpectBytesInFlight{bytes_sent});
+            // The ACK segment shouldn't advertise a default window size,
+            // it should be accurately calculated instead.
             test.execute(AckReceived{WrappingInt32{isn + 1 + uint32_t(bytes_sent)}});
             test.execute(ExpectBytesInFlight{0});
         }

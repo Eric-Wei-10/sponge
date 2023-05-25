@@ -110,6 +110,11 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 
     // Ignore illegal ACK package.
     if (_abs_ackno > _upper_bound)
+        /*
+         * The line below is also correct (even more efficient), but there is a
+         * bug in test 'send_transmit'. See send_transmit.cc: 96 for more information.
+         * */
+        // if (_abs_ackno > _upper_bound || _abs_ackno + window_size < _upper_bound)
         return;
 
     // Remove ongoing segment.
