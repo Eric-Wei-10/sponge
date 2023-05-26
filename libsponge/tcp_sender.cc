@@ -54,10 +54,9 @@ void TCPSender::fill_window() {
         return;
 
     // Send one byte if the receiver announces its window size to be 0.
-    if ((_upper_bound == _next_ackno ) && !_canary_sent) {
-        cout << "send a canary" << endl;
+    if ((_upper_bound == _next_ackno) && !_canary_sent) {
         TCPSegment _segment;
-        
+
         _segment.header().seqno = wrap(_next_seqno, _isn);
 
         if (!_stream.buffer_empty()) {
@@ -213,7 +212,8 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
 void TCPSender::tick(const size_t ms_since_last_tick) {
-    if (!_timer_started) return;
+    if (!_timer_started)
+        return;
 
     size_t _remaining_time_ticks = ms_since_last_tick;
     bool _resend = false;
@@ -245,8 +245,6 @@ void TCPSender::tick(const size_t ms_since_last_tick) {
     _timer_countdown -= _remaining_time_ticks;
 }
 
-unsigned int TCPSender::consecutive_retransmissions() const {
-    return _consecutive_retransmissions;
-}
+unsigned int TCPSender::consecutive_retransmissions() const { return _consecutive_retransmissions; }
 
 void TCPSender::send_empty_segment() {}

@@ -46,7 +46,7 @@ class TCPSender {
 
     bool _fin_sent{false};
 
-    bool _canary_sent{false}; // Detect window size change.
+    bool _canary_sent{false};  // Detect window size change.
 
     // Timer variables.
     bool _timer_started{false};
