@@ -38,13 +38,22 @@ class TCPSender {
 
     uint64_t _upper_bound{0};
 
-    queue<TCPSegment> _outgoing{};
+    queue<TCPSegment> _outstanding{};
 
     queue<TCPSegment> _helper{};
 
     bool _syn_sent{false};
 
     bool _fin_sent{false};
+
+    bool _canary_sent{false}; // Detect window size change.
+
+    // Timer variables.
+    bool _timer_started{false};
+
+    unsigned int _consecutive_retransmissions{0};
+
+    unsigned int _timer_countdown{0};
 
   public:
     //! Initialize a TCPSender

@@ -35,7 +35,14 @@ void TCPSender::fill_window() {
 
         // Push to queue.
         _segments_out.push(_segment);
-        _outgoing.push(_segment);
+        _outstanding.push(_segment);
+
+        // Start timer.
+        if (!_timer_started) {
+            _timer_started = true;
+            _consecutive_retransmissions = 0;
+            _timer_countdown = _initial_retransmission_timeout;
+        }
 
         // Update '_next_seqno' AND '_upper_bound'.
         _next_seqno = _upper_bound = 1;
@@ -46,12 +53,46 @@ void TCPSender::fill_window() {
     if (_fin_sent)
         return;
 
+    // Send one byte if the receiver announces its window size to be 0.
+    if ((_upper_bound == _next_ackno ) && !_canary_sent) {
+        cout << "send a canary" << endl;
+        TCPSegment _segment;
+        
+        _segment.header().seqno = wrap(_next_seqno, _isn);
+
+        if (!_stream.buffer_empty()) {
+            // If buffer is not empty, send a byte.
+            _segment.payload() = Buffer(_stream.peek_output(1));
+            _stream.pop_output(1);
+        } else {
+            // If buffer is empty and at eof, send fin.
+            if (_stream.eof()) {
+                _segment.header().fin = true;
+                _fin_sent = true;
+            }
+        }
+
+        // Push segment into queue.
+        _segments_out.push(_segment);
+        _outstanding.push(_segment);
+        _canary_sent = true;
+
+        // Start timer.
+        if (!_timer_started) {
+            _timer_started = true;
+            _consecutive_retransmissions = 0;
+            _timer_countdown = _initial_retransmission_timeout;
+        }
+
+        return;
+    }
+
     // Send a normal segment according to buffer and window size.
-    size_t _window_size = _upper_bound - _next_seqno;
+    size_t _bytes_can_send = _upper_bound - _next_seqno;
     size_t _bytes_to_read = _stream.buffer_size();
 
-    if (_window_size == 0) {
-        // Send a segment with one byte and return.
+    if (_bytes_can_send == 0) {
+        // Nothing to send.
         return;
     }
 
@@ -68,11 +109,19 @@ void TCPSender::fill_window() {
 
         // Push segment into queue.
         _segments_out.push(_segment);
-        _outgoing.push(_segment);
+        _outstanding.push(_segment);
+
+        // Start timer.
+        if (!_timer_started) {
+            _timer_started = true;
+            _consecutive_retransmissions = 0;
+            _timer_countdown = _initial_retransmission_timeout;
+        }
+
         return;
     }
 
-    size_t _bytes_to_send = _window_size < _bytes_to_read ? _window_size : _bytes_to_read;
+    size_t _bytes_to_send = _bytes_can_send < _bytes_to_read ? _bytes_can_send : _bytes_to_read;
 
     while (_bytes_to_send) {
         TCPSegment _segment;
@@ -87,18 +136,25 @@ void TCPSender::fill_window() {
         _next_seqno += _payload_size;
 
         // Set FIN flag if there is enough space.
-        if (_payload_size < _window_size && _stream.eof()) {
+        if (_payload_size < _bytes_can_send && _stream.eof()) {
             _segment.header().fin = true;
             _fin_sent = true;
             _next_seqno += 1;
-            cout << "send fin" << endl;
+            // cout << "send fin" << endl;
         }
 
         // Push segment into queue.
         _segments_out.push(_segment);
-        _outgoing.push(_segment);
+        _outstanding.push(_segment);
 
-        _window_size -= _payload_size;
+        // Start timer.
+        if (!_timer_started) {
+            _timer_started = true;
+            _consecutive_retransmissions = 0;
+            _timer_countdown = _initial_retransmission_timeout;
+        }
+
+        _bytes_can_send -= _payload_size;
         _bytes_to_send -= _payload_size;
     }
 }
@@ -108,26 +164,43 @@ void TCPSender::fill_window() {
 void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_size) {
     uint64_t _abs_ackno = unwrap(ackno, _isn, _next_ackno);
 
-    // Ignore illegal ACK package.
-    if (_abs_ackno > _upper_bound)
+    // Ignore illegal and outdated ACK package.
+    if (!_canary_sent && (_abs_ackno > _upper_bound || _abs_ackno < _next_ackno))
         /*
          * The line below is also correct (even more efficient), but there is a
          * bug in test 'send_transmit'. See send_transmit.cc: 96 for more information.
          * */
-        // if (_abs_ackno > _upper_bound || _abs_ackno + window_size < _upper_bound)
+        // if (!_canary_sent && (_abs_ackno > _upper_bound || _abs_ackno + window_size < _upper_bound))
         return;
 
+    if (_canary_sent) {
+        cout << "ack a canary" << endl;
+        // ack at eof.
+        _next_seqno += 1;
+        _canary_sent = false;
+    }
+
     // Remove ongoing segment.
-    while (!_outgoing.empty()) {
-        TCPSegment _seg = _outgoing.front();
+    while (!_outstanding.empty()) {
+        TCPSegment _seg = _outstanding.front();
         uint64_t _abs_seqno = unwrap(_seg.header().seqno, _isn, _next_seqno);
         size_t _segment_size = _seg.length_in_sequence_space();
 
         if (_abs_seqno + _segment_size <= _abs_ackno) {
-            _outgoing.pop();
+            _outstanding.pop();
             // cout << "poped segment begins at: " << _abs_seqno << endl;
         } else {
             break;
+        }
+    }
+
+    // If new bytes are ACKed, adjust timer.
+    if (_abs_ackno > _next_ackno) {
+        if (_outstanding.empty()) {
+            _timer_started = false;
+        } else {
+            _consecutive_retransmissions = 0;
+            _timer_countdown = _initial_retransmission_timeout;
         }
     }
 
@@ -135,13 +208,45 @@ void TCPSender::ack_received(const WrappingInt32 ackno, const uint16_t window_si
     _next_ackno = _abs_ackno;
     _upper_bound = _abs_ackno + window_size;
 
-    // cout << "Updated ackno: " << _next_ackno << ", new bound " << _upper_bound << endl;
-    // cout << bytes_in_flight() << endl;
+    return;
 }
 
 //! \param[in] ms_since_last_tick the number of milliseconds since the last call to this method
-void TCPSender::tick(const size_t ms_since_last_tick) { DUMMY_CODE(ms_since_last_tick); }
+void TCPSender::tick(const size_t ms_since_last_tick) {
+    if (!_timer_started) return;
 
-unsigned int TCPSender::consecutive_retransmissions() const { return {}; }
+    size_t _remaining_time_ticks = ms_since_last_tick;
+    bool _resend = false;
+
+    while (_remaining_time_ticks >= _timer_countdown) {
+        _remaining_time_ticks -= _timer_countdown;
+
+        _consecutive_retransmissions += 1;
+        if (_consecutive_retransmissions > TCPConfig::MAX_RETX_ATTEMPTS) {
+            // If retx times exceed the limit, stop timer and return.
+            _timer_started = false;
+            return;
+        }
+
+        // The canary segment doesn't double rto.
+        if (_canary_sent) {
+            _timer_countdown = _initial_retransmission_timeout;
+        } else {
+            _timer_countdown = (_initial_retransmission_timeout << _consecutive_retransmissions);
+        }
+
+        // Only resend once each time 'tick' is called.
+        if (!_resend) {
+            _resend = true;
+            _segments_out.push(_outstanding.front());
+        }
+    }
+
+    _timer_countdown -= _remaining_time_ticks;
+}
+
+unsigned int TCPSender::consecutive_retransmissions() const {
+    return _consecutive_retransmissions;
+}
 
 void TCPSender::send_empty_segment() {}
